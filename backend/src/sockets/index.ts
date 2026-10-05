@@ -5,8 +5,24 @@ import { verifyToken } from '../utils/jwt';
 let io: Server | null = null;
 
 export function initSockets(httpServer: HttpServer, clientUrl: string) {
+  const allowedOrigins = clientUrl.split(',').map((u) => u.trim().replace(/\/$/, ''));
+
   io = new Server(httpServer, {
-    cors: { origin: clientUrl, credentials: true },
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const clean = origin.replace(/\/$/, '');
+        if (
+          allowedOrigins.includes(clean) ||
+          clean.endsWith('.vercel.app') ||
+          clean.includes('localhost')
+        ) {
+          return callback(null, true);
+        }
+        callback(new Error('Origin not allowed by Socket.io CORS'));
+      },
+      credentials: true,
+    },
   });
 
   io.on('connection', (socket: Socket) => {

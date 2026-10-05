@@ -54,21 +54,29 @@ app.use(
   })
 );
 
-// Strict CORS Configuration
-const allowedOrigins = [env.CLIENT_URL];
+// Flexible and Secure CORS Configuration
+const configuredOrigins = env.CLIENT_URL.split(',').map((u) => u.trim().replace(/\/$/, ''));
+
+function isOriginAllowed(origin?: string): boolean {
+  // Allow requests without Origin header (Render health checks, monitoring pings, cURL, server-to-server)
+  if (!origin) return true;
+  const cleanOrigin = origin.replace(/\/$/, '');
+  return (
+    configuredOrigins.includes(cleanOrigin) ||
+    cleanOrigin.endsWith('.vercel.app') ||
+    cleanOrigin.includes('localhost')
+  );
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (such as mobile apps, curl, server-to-server) in non-production
-      if (!origin && env.NODE_ENV !== 'production') {
+      if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
-      if (origin && allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      callback(new Error('Blocked by CORS policy'));
+      callback(new Error(`Blocked by CORS policy: ${origin}`));
     },
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     maxAge: 86400,
@@ -86,7 +94,16 @@ if (env.NODE_ENV === 'development') {
   app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
 }
 
-// Health check endpoint
+// Root and Health check endpoints for Render uptime monitoring
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Food Rescue Network API',
+    environment: env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get('/health', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ status: 'ok', time: new Date().toISOString() });
