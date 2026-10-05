@@ -1,0 +1,89 @@
+// Food Rescue Network - Data Model
+// Run `npx prisma migrate dev` after setting DATABASE_URL in .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DONOR      // restaurants, grocery stores, event caterers, households
+  RECEIVER   // shelters, NGOs, individuals in need
+  ADMIN
+}
+
+enum DonationStatus {
+  AVAILABLE
+  CLAIMED
+  PICKED_UP
+  EXPIRED
+  CANCELLED
+}
+
+model User {
+  id            String       @id @default(uuid())
+  name          String
+  email         String       @unique
+  passwordHash  String
+  role          Role
+  phone         String?
+  orgName       String?      // organization name, for donors/receivers that are orgs
+  address       String?
+  latitude      Float?
+  longitude     Float?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  donations     Donation[]   @relation("DonorDonations")
+  claims        Claim[]      @relation("ReceiverClaims")
+  notifications Notification[]
+}
+
+model Donation {
+  id             String         @id @default(uuid())
+  donor          User           @relation("DonorDonations", fields: [donorId], references: [id])
+  donorId        String
+  title          String
+  description    String?
+  foodType       String         // e.g. "Cooked meals", "Produce", "Bakery", "Packaged goods"
+  quantity       String         // free text e.g. "20 servings", "15 kg"
+  servesApprox   Int?           // approximate number of people it can feed
+  expiryTime     DateTime       // when the food is no longer safe/available
+  pickupWindowStart DateTime
+  pickupWindowEnd   DateTime
+  latitude       Float
+  longitude      Float
+  address        String
+  imageUrl       String?
+  status         DonationStatus @default(AVAILABLE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  claim          Claim?
+}
+
+model Claim {
+  id           String   @id @default(uuid())
+  donation     Donation @relation(fields: [donationId], references: [id])
+  donationId   String   @unique
+  receiver     User     @relation("ReceiverClaims", fields: [receiverId], references: [id])
+  receiverId   String
+  claimedAt    DateTime @default(now())
+  pickedUpAt   DateTime?
+  pickupCode   String?
+  notes        String?
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
